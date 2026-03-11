@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import '../models/food_item.dart';
+import '../data/food_store.dart';
 
 class ItemDetailPage extends StatelessWidget {
   final FoodItem item;
-  const ItemDetailPage({super.key, required this.item});
+  final FoodStore store;
+
+  const ItemDetailPage({
+    super.key,
+    required this.item,
+    required this.store,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +20,10 @@ class ItemDetailPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text("Item Details"),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.edit_outlined)),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.edit_outlined),
+          ),
         ],
       ),
       body: Padding(
@@ -26,7 +36,10 @@ class ItemDetailPage extends StatelessWidget {
               children: [
                 Text(
                   item.name,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text("Category: ${item.category}"),
@@ -46,7 +59,12 @@ class ItemDetailPage extends StatelessWidget {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () {},
+                        onPressed: () async {
+                          await store.deleteItem(item.id);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                          }
+                        },
                         icon: const Icon(Icons.delete_outline),
                         label: const Text("Delete"),
                       ),
@@ -60,7 +78,7 @@ class ItemDetailPage extends StatelessWidget {
                       ),
                     ),
                   ],
-                )
+                ),
               ],
             ),
           ),
@@ -78,6 +96,7 @@ class ItemDetailPage extends StatelessWidget {
 
 class _StatusChip extends StatelessWidget {
   final int days;
+
   const _StatusChip({required this.days});
 
   @override

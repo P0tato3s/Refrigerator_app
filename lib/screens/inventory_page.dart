@@ -1,23 +1,57 @@
 import 'package:flutter/material.dart';
-import '../data/mock_food_items.dart';
+import '../data/food_store.dart';
 import '../models/food_item.dart';
 import 'item_detail_page.dart';
 
 class InventoryPage extends StatelessWidget {
-  const InventoryPage({super.key});
+  final FoodStore store;
+
+  const InventoryPage({super.key, required this.store});
 
   @override
   Widget build(BuildContext context) {
-    final items = [...mockFoodItems]
-      ..sort((a, b) => a.expiresOn.compareTo(b.expiresOn));
-
     return Scaffold(
       appBar: AppBar(title: const Text("Inventory")),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (context, i) => _FoodRow(item: items[i]),
+      body: StreamBuilder<List<FoodItem>>(
+        stream: store.watchItems(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  "Error loading inventory.\n\n${snapshot.error}",
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          final items = snapshot.data ?? [];
+
+          if (items.isEmpty) {
+            return const Center(
+              child: Text("No items in your fridge yet."),
+            );
+          }
+
+          final sortedItems = [...items]
+            ..sort((a, b) => a.expiresOn.compareTo(b.expiresOn));
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: sortedItems.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
+            itemBuilder: (context, index) => _FoodRow(
+              item: sortedItems[index],
+              store: store,
+            ),
+          );
+        },
       ),
     );
   }
@@ -25,7 +59,12 @@ class InventoryPage extends StatelessWidget {
 
 class _FoodRow extends StatelessWidget {
   final FoodItem item;
-  const _FoodRow({required this.item});
+  final FoodStore store;
+
+  const _FoodRow({
+    required this.item,
+    required this.store,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +72,39 @@ class _FoodRow extends StatelessWidget {
 
     return Card(
       child: ListTile(
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: item.photoUrl != null && item.photoUrl!.isNotEmpty
+                ? Image.network(
+              item.photoUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const ColoredBox(
+                  color: Color(0xFFF0F0F2),
+                  child: Icon(Icons.image_outlined),
+                );
+              },
+            )
+                : const ColoredBox(
+              color: Color(0xFFF0F0F2),
+              child: Icon(Icons.image_outlined),
+            ),
+          ),
+        ),
         title: Text(item.name),
         subtitle: Text("${item.quantity} ${item.unit} • ${item.category}"),
         trailing: _ExpiryChip(days: days),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => ItemDetailPage(item: item)),
+          MaterialPageRoute(
+            builder: (_) => ItemDetailPage(
+              item: item,
+              store: store,
+            ),
+          ),
         ),
       ),
     );
@@ -47,6 +113,7 @@ class _FoodRow extends StatelessWidget {
 
 class _ExpiryChip extends StatelessWidget {
   final int days;
+
   const _ExpiryChip({required this.days});
 
   @override

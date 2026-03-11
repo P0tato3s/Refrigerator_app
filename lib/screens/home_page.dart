@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../data/mock_food_items.dart';
 import '../models/food_item.dart';
+import '../data/food_store.dart';
 
 import 'add_item_page.dart';
 import 'inventory_page.dart';
@@ -8,7 +8,9 @@ import 'recipes_page.dart';
 import 'item_detail_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final FoodStore store;
+
+  const HomePage({super.key, required this.store});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -17,46 +19,72 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int navIndex = 0;
   String selectedCategory = "All";
+  String searchQuery = "";
 
   @override
   Widget build(BuildContext context) {
-    final items = mockFoodItems;
-
-    final categories = <String>{
-      "All",
-      ...items.map((e) => e.category),
-    }.toList();
-
     return Scaffold(
       body: IndexedStack(
         index: navIndex,
         children: [
-          _HomeTab(
-            items: items,
-            categories: categories,
-            selectedCategory: selectedCategory,
-            onSelectCategory: (c) => setState(() => selectedCategory = c),
-            onOpenInventory: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const InventoryPage()),
-            ),
-            onOpenRecipes: () => setState(() => navIndex = 2),
+          StreamBuilder<List<FoodItem>>(
+            stream: widget.store.watchItems(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SafeArea(
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return SafeArea(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        "Error loading items:\n${snapshot.error}",
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              final items = snapshot.data ?? [];
+
+              final categories = <String>{
+                "All",
+                ...items.map((e) => e.category),
+              }.toList();
+
+              return _HomeTab(
+                store: widget.store,
+                items: items,
+                categories: categories,
+                selectedCategory: selectedCategory,
+                searchQuery: searchQuery,
+                onSelectCategory: (c) => setState(() => selectedCategory = c),
+                onSearchChanged: (value) =>
+                    setState(() => searchQuery = value.trim()),
+                onOpenInventory: () => setState(() => navIndex = 1),
+              );
+            },
           ),
-          const InventoryPage(),
+          InventoryPage(store: widget.store),
           const RecipesPage(),
           const _ProfilePlaceholderPage(),
         ],
       ),
-
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const AddItemPage()),
+          MaterialPageRoute(
+            builder: (_) => AddItemPage(store: widget.store),
+          ),
         ),
         child: const Icon(Icons.add),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
       bottomNavigationBar: BottomAppBar(
         height: 64,
         shape: const CircularNotchedRectangle(),
@@ -97,27 +125,38 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _HomeTab extends StatelessWidget {
+  final FoodStore store;
   final List<FoodItem> items;
   final List<String> categories;
   final String selectedCategory;
+  final String searchQuery;
   final ValueChanged<String> onSelectCategory;
+  final ValueChanged<String> onSearchChanged;
   final VoidCallback onOpenInventory;
-  final VoidCallback onOpenRecipes;
 
   const _HomeTab({
+    required this.store,
     required this.items,
     required this.categories,
     required this.selectedCategory,
+    required this.searchQuery,
     required this.onSelectCategory,
+    required this.onSearchChanged,
     required this.onOpenInventory,
-    required this.onOpenRecipes,
   });
 
   @override
   Widget build(BuildContext context) {
-    final filtered = selectedCategory == "All"
-        ? items
-        : items.where((e) => e.category == selectedCategory).toList();
+    final filtered = items.where((item) {
+      final matchesCategory =
+          selectedCategory == "All" || item.category == selectedCategory;
+
+      final matchesSearch = searchQuery.isEmpty ||
+          item.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
+          item.category.toLowerCase().contains(searchQuery.toLowerCase());
+
+      return matchesCategory && matchesSearch;
+    }).toList();
 
     return SafeArea(
       child: ListView(
@@ -133,7 +172,7 @@ class _HomeTab extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: _SearchBar(
               hint: "Search items",
-              onChanged: (v) {},
+              onChanged: onSearchChanged,
             ),
           ),
           SizedBox(
@@ -141,16 +180,18 @@ class _HomeTab extends StatelessWidget {
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               scrollDirection: Axis.horizontal,
-              itemBuilder: (context, i) {
-                final c = categories[i];
+              itemBuilder: (context, index) {
+                final c = categories[index];
                 final isSelected = c == selectedCategory;
+
                 return ChoiceChip(
                   label: Text(c),
                   selected: isSelected,
                   onSelected: (_) => onSelectCategory(c),
                 );
               },
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              separatorBuilder: (context, index) =>
+              const SizedBox(width: 10),
               itemCount: categories.length,
             ),
           ),
@@ -159,29 +200,41 @@ class _HomeTab extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    "Inventory",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    searchQuery.isEmpty ? "Inventory" : "Results",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                TextButton(onPressed: onOpenInventory, child: const Text("See all")),
+                TextButton(
+                  onPressed: onOpenInventory,
+                  child: const Text("See all"),
+                ),
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 90),
-            child: GridView.builder(
+            child: filtered.isEmpty
+                ? const _EmptyState()
+                : GridView.builder(
               itemCount: filtered.length,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 14,
                 childAspectRatio: 0.78,
               ),
-              itemBuilder: (context, i) => FoodCard(item: filtered[i]),
+              itemBuilder: (context, index) => FoodCard(
+                item: filtered[index],
+                store: store,
+              ),
             ),
           ),
         ],
@@ -228,7 +281,10 @@ class _Header extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(subtitle, style: const TextStyle(fontSize: 13)),
@@ -249,7 +305,10 @@ class _SearchBar extends StatelessWidget {
   final String hint;
   final ValueChanged<String> onChanged;
 
-  const _SearchBar({required this.hint, required this.onChanged});
+  const _SearchBar({
+    required this.hint,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -269,7 +328,13 @@ class _SearchBar extends StatelessWidget {
 
 class FoodCard extends StatelessWidget {
   final FoodItem item;
-  const FoodCard({super.key, required this.item});
+  final FoodStore store;
+
+  const FoodCard({
+    super.key,
+    required this.item,
+    required this.store,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -279,20 +344,42 @@ class FoodCard extends StatelessWidget {
     return InkWell(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => ItemDetailPage(item: item)),
+        MaterialPageRoute(
+          builder: (_) => ItemDetailPage(
+            item: item,
+            store: store,
+          ),
+        ),
       ),
       child: Card(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF0F0F2),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(18),
                 ),
-                child: const Icon(Icons.image_outlined, size: 42),
+                child: item.photoUrl != null && item.photoUrl!.isNotEmpty
+                    ? Image.network(
+                  item.photoUrl!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: const Color(0xFFF0F0F2),
+                      child: const Center(
+                        child: Icon(Icons.image_outlined, size: 42),
+                      ),
+                    );
+                  },
+                )
+                    : Container(
+                  color: const Color(0xFFF0F0F2),
+                  child: const Center(
+                    child: Icon(Icons.image_outlined, size: 42),
+                  ),
+                ),
               ),
             ),
             Padding(
@@ -325,6 +412,7 @@ class FoodCard extends StatelessWidget {
 
 class _ExpiryPill extends StatelessWidget {
   final int daysUntil;
+
   const _ExpiryPill({required this.daysUntil});
 
   @override
@@ -379,6 +467,34 @@ class _NavIcon extends StatelessWidget {
     return IconButton(
       onPressed: onTap,
       icon: Icon(selected ? selectedIcon : icon),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: const [
+            Icon(Icons.kitchen_outlined, size: 40),
+            SizedBox(height: 12),
+            Text(
+              "No items found.",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            SizedBox(height: 6),
+            Text(
+              "Try another category or add a new item with the + button.",
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

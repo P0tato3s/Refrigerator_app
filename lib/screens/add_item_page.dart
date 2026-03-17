@@ -14,14 +14,16 @@ class AddItemPage extends StatefulWidget {
 
 class _AddItemPageState extends State<AddItemPage> {
   final _formKey = GlobalKey<FormState>();
-
   final TextEditingController nameCtrl = TextEditingController();
   final TextEditingController qtyCtrl = TextEditingController(text: "1");
 
   String category = "Produce";
   String unit = "pcs";
   DateTime? expiresOn;
+
   bool isSaving = false;
+  bool isLoadingPreview = false;
+  String? previewImageUrl;
 
   @override
   void dispose() {
@@ -44,6 +46,24 @@ class _AddItemPageState extends State<AddItemPage> {
     }
   }
 
+  Future<void> _fetchPreviewImage() async {
+    final itemName = nameCtrl.text.trim();
+    if (itemName.isEmpty) return;
+
+    setState(() => isLoadingPreview = true);
+
+    try {
+      final url = await ImageService.fetchFoodImage(itemName);
+
+      if (!mounted) return;
+      setState(() => previewImageUrl = url);
+    } finally {
+      if (mounted) {
+        setState(() => isLoadingPreview = false);
+      }
+    }
+  }
+
   Future<void> _saveItem() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -57,12 +77,14 @@ class _AddItemPageState extends State<AddItemPage> {
     setState(() => isSaving = true);
 
     try {
-      final name = nameCtrl.text.trim();
-      final imageUrl = await ImageService.fetchFoodImage(name);
+      final itemName = nameCtrl.text.trim();
+
+      String? imageUrl = previewImageUrl;
+      imageUrl ??= await ImageService.fetchFoodImage(itemName);
 
       final item = FoodItem(
         id: '',
-        name: name,
+        name: itemName,
         category: category,
         quantity: int.tryParse(qtyCtrl.text.trim()) ?? 1,
         unit: unit,
@@ -76,12 +98,53 @@ class _AddItemPageState extends State<AddItemPage> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      setState(() => isSaving = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to save item: $e")),
       );
+    } finally {
+      if (mounted) {
+        setState(() => isSaving = false);
+      }
     }
+  }
+
+  Widget _buildImagePreview() {
+    if (isLoadingPreview) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (previewImageUrl == null || previewImageUrl!.isEmpty) {
+      return const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.fastfood_outlined, size: 36),
+          SizedBox(height: 8),
+          Text("Search image from item name"),
+        ],
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Image.network(
+        previewImageUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.broken_image_outlined, size: 36),
+                SizedBox(height: 8),
+                Text("Image failed to load"),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   String _formatDate(DateTime d) {
@@ -99,11 +162,24 @@ class _AddItemPageState extends State<AddItemPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F0F2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: _buildImagePreview(),
+            ),
+            const SizedBox(height: 12),
             TextFormField(
               controller: nameCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: "Item name",
-                prefixIcon: Icon(Icons.edit_outlined),
+                prefixIcon: const Icon(Icons.edit_outlined),
+                suffixIcon: IconButton(
+                  onPressed: isLoadingPreview ? null : _fetchPreviewImage,
+                  icon: const Icon(Icons.image_search_outlined),
+                ),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
@@ -111,6 +187,7 @@ class _AddItemPageState extends State<AddItemPage> {
                 }
                 return null;
               },
+              onFieldSubmitted: (_) => _fetchPreviewImage(),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -177,7 +254,9 @@ class _AddItemPageState extends State<AddItemPage> {
                 child: Text(
                   expiresOn == null ? "Tap to select" : _formatDate(expiresOn!),
                   style: TextStyle(
-                    color: expiresOn == null ? Theme.of(context).hintColor : null,
+                    color: expiresOn == null
+                        ? Theme.of(context).hintColor
+                        : null,
                   ),
                 ),
               ),

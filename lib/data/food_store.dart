@@ -3,12 +3,15 @@ import '../models/food_item.dart';
 
 class FoodStore {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final String uid;
+
+  FoodStore({required this.uid});
+
+  CollectionReference<Map<String, dynamic>> get _itemsRef =>
+      _db.collection('users').doc(uid).collection('food_items');
 
   Stream<List<FoodItem>> watchItems() {
-    return _db.collection('food_items')
-        .orderBy('expiresOn')
-        .snapshots()
-        .map((snapshot) {
+    return _itemsRef.orderBy('expiresOn').snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
         return FoodItem.fromMap(doc.id, doc.data());
       }).toList();
@@ -16,14 +19,14 @@ class FoodStore {
   }
 
   Future<void> addItem(FoodItem item) async {
-    await _db.collection('food_items').add(item.toMap());
+    await _itemsRef.add(item.toMap());
   }
 
   Future<void> deleteItem(String id) async {
-    await _db.collection('food_items').doc(id).delete();
+    await _itemsRef.doc(id).delete();
   }
 
   Future<void> updateItem(FoodItem item) async {
-    await _db.collection('food_items').doc(item.id).update(item.toMap());
+    await _itemsRef.doc(item.id).update(item.toMap());
   }
 }

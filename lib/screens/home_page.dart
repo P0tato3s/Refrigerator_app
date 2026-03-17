@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/food_item.dart';
 import '../data/food_store.dart';
+import '../services/auth_service.dart';
 
 import 'add_item_page.dart';
 import 'inventory_page.dart';
@@ -504,9 +505,41 @@ class _ProfilePlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SafeArea(
+    final auth = AuthService();
+    final user = auth.currentUser;
+
+    return SafeArea(
       child: Center(
-        child: Text("Profile / Settings page later"),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.person_outline, size: 72),
+              const SizedBox(height: 16),
+              const Text(
+                'Profile',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                user?.email ?? 'No email found',
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () async {
+                  await auth.signOut();
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text('Logout'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

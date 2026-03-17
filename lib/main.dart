@@ -1,8 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'firebase_options.dart';
-import 'screens/home_page.dart';
-import 'data/food_store.dart';
+import 'screens/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,11 +18,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = FoodStore();
-
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: "Refrigerator App",
+      title: 'Refrigerator App',
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.green,
@@ -43,7 +40,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: HomePage(store: store),
+      home: const AuthGate(),
     );
   }
 }

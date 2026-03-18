@@ -77,6 +77,7 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        elevation: 3,
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -85,41 +86,33 @@ class _HomePageState extends State<HomePage> {
         ),
         child: const Icon(Icons.add),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        height: 64,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _NavIcon(
-              icon: Icons.home_outlined,
-              selectedIcon: Icons.home,
-              selected: navIndex == 0,
-              onTap: () => setState(() => navIndex = 0),
-            ),
-            _NavIcon(
-              icon: Icons.list_alt_outlined,
-              selectedIcon: Icons.list_alt,
-              selected: navIndex == 1,
-              onTap: () => setState(() => navIndex = 1),
-            ),
-            const SizedBox(width: 38),
-            _NavIcon(
-              icon: Icons.restaurant_menu_outlined,
-              selectedIcon: Icons.restaurant_menu,
-              selected: navIndex == 2,
-              onTap: () => setState(() => navIndex = 2),
-            ),
-            _NavIcon(
-              icon: Icons.person_outline,
-              selectedIcon: Icons.person,
-              selected: navIndex == 3,
-              onTap: () => setState(() => navIndex = 3),
-            ),
-          ],
-        ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: navIndex,
+        onDestinationSelected: (index) {
+          setState(() => navIndex = index);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: "Home",
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2),
+            label: "Inventory",
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.restaurant_menu_outlined),
+            selectedIcon: Icon(Icons.restaurant_menu),
+            label: "Recipes",
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: "Profile",
+          ),
+        ],
       ),
     );
   }
@@ -159,28 +152,29 @@ class _HomeTab extends StatelessWidget {
       return matchesCategory && matchesSearch;
     }).toList();
 
+    final expiringSoon =
+        items.where((item) => item.daysUntilExpiry(DateTime.now()) <= 3).length;
+
     return SafeArea(
       child: ListView(
-        padding: EdgeInsets.zero,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
         children: [
           _Header(
-            title: "My Fridge",
-            subtitle: "What are we cooking today?",
-            onProfile: () {},
-            onBell: () {},
+            totalItems: items.length,
+            expiringSoon: expiringSoon,
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: _SearchBar(
-              hint: "Search items",
-              onChanged: onSearchChanged,
-            ),
+          const SizedBox(height: 18),
+          _SearchBar(
+            hint: "Search items",
+            onChanged: onSearchChanged,
           ),
+          const SizedBox(height: 16),
           SizedBox(
-            height: 46,
+            height: 42,
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
               scrollDirection: Axis.horizontal,
+              itemCount: categories.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 final c = categories[index];
                 final isSelected = c == selectedCategory;
@@ -191,51 +185,42 @@ class _HomeTab extends StatelessWidget {
                   onSelected: (_) => onSelectCategory(c),
                 );
               },
-              separatorBuilder: (context, index) =>
-              const SizedBox(width: 10),
-              itemCount: categories.length,
             ),
           ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    searchQuery.isEmpty ? "Inventory" : "Results",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  searchQuery.isEmpty ? "My Inventory" : "Search Results",
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                TextButton(
-                  onPressed: onOpenInventory,
-                  child: const Text("See all"),
-                ),
-              ],
-            ),
+              ),
+              TextButton(
+                onPressed: onOpenInventory,
+                child: const Text("See all"),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 90),
-            child: filtered.isEmpty
-                ? const _EmptyState()
-                : GridView.builder(
-              itemCount: filtered.length,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: 0.78,
-              ),
-              itemBuilder: (context, index) => FoodCard(
-                item: filtered[index],
-                store: store,
-              ),
+          const SizedBox(height: 12),
+          filtered.isEmpty
+              ? const _EmptyState()
+              : GridView.builder(
+            itemCount: filtered.length,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.72,
+            ),
+            itemBuilder: (context, index) => FoodCard(
+              item: filtered[index],
+              store: store,
             ),
           ),
         ],
@@ -245,56 +230,144 @@ class _HomeTab extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final VoidCallback onProfile;
-  final VoidCallback onBell;
+  final int totalItems;
+  final int expiringSoon;
 
   const _Header({
-    required this.title,
-    required this.subtitle,
-    required this.onProfile,
-    required this.onBell,
+    required this.totalItems,
+    required this.expiringSoon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-      decoration: const BoxDecoration(
-        color: Color(0xFFDCE9E2),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(26),
-          bottomRight: Radius.circular(26),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFFDFF3E8),
+            Color(0xFFCDEBDA),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.kitchen_outlined, size: 26),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "My Fridge",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      "Track freshness and cook smarter",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  onPressed: () {},
+                  icon: const Icon(Icons.notifications_none),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                  label: "Items",
+                  value: "$totalItems",
+                  icon: Icons.inventory_2_outlined,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                  label: "Expiring Soon",
+                  value: "$expiringSoon",
+                  icon: Icons.schedule_outlined,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: onProfile,
-            child: const CircleAvatar(radius: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
+          Icon(icon, size: 22),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(fontSize: 13)),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: onBell,
-            icon: const Icon(Icons.notifications_none),
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black54,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -318,9 +391,16 @@ class _SearchBar extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: const Icon(Icons.search),
-        suffixIcon: IconButton(
-          onPressed: () {},
-          icon: const Icon(Icons.tune),
+        suffixIcon: Container(
+          margin: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F2F4),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.tune),
+          ),
         ),
       ),
     );
@@ -339,10 +419,10 @@ class FoodCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final days = item.daysUntilExpiry(now);
+    final days = item.daysUntilExpiry(DateTime.now());
 
     return InkWell(
+      borderRadius: BorderRadius.circular(22),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
@@ -352,56 +432,67 @@ class FoodCard extends StatelessWidget {
           ),
         ),
       ),
-      child: Card(
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
+              flex: 6,
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(18),
+                  top: Radius.circular(22),
                 ),
                 child: item.photoUrl != null && item.photoUrl!.isNotEmpty
                     ? Image.network(
                   item.photoUrl!,
                   fit: BoxFit.cover,
                   width: double.infinity,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: const Color(0xFFF0F0F2),
-                      child: const Center(
-                        child: Icon(Icons.image_outlined, size: 42),
-                      ),
-                    );
-                  },
+                  errorBuilder: (_, __, ___) => _imageFallback(),
                 )
-                    : Container(
-                  color: const Color(0xFFF0F0F2),
-                  child: const Center(
-                    child: Icon(Icons.image_outlined, size: 42),
-                  ),
-                ),
+                    : _imageFallback(),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    "${item.quantity} ${item.unit} • ${item.category}",
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  const SizedBox(height: 10),
-                  _ExpiryPill(daysUntil: days),
-                ],
+            Expanded(
+              flex: 4,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${item.quantity} ${item.unit} • ${item.category}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const Spacer(),
+                    _ExpiryBadge(daysUntil: days),
+                  ],
+                ),
               ),
             ),
           ],
@@ -409,65 +500,67 @@ class FoodCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _ExpiryPill extends StatelessWidget {
-  final int daysUntil;
-
-  const _ExpiryPill({required this.daysUntil});
-
-  @override
-  Widget build(BuildContext context) {
-    String text;
-    IconData icon;
-
-    if (daysUntil < 0) {
-      text = "Expired";
-      icon = Icons.error_outline;
-    } else if (daysUntil <= 3) {
-      text = "Soon ($daysUntil d)";
-      icon = Icons.timer_outlined;
-    } else {
-      text = "Fresh";
-      icon = Icons.check_circle_outline;
-    }
-
+  Widget _imageFallback() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F7F9),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 6),
-          Text(text, style: const TextStyle(fontSize: 12)),
-        ],
+      color: const Color(0xFFF1F3F5),
+      child: const Center(
+        child: Icon(Icons.fastfood_outlined, size: 38),
       ),
     );
   }
 }
 
-class _NavIcon extends StatelessWidget {
-  final IconData icon;
-  final IconData selectedIcon;
-  final bool selected;
-  final VoidCallback onTap;
+class _ExpiryBadge extends StatelessWidget {
+  final int daysUntil;
 
-  const _NavIcon({
-    required this.icon,
-    required this.selectedIcon,
-    required this.selected,
-    required this.onTap,
-  });
+  const _ExpiryBadge({required this.daysUntil});
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onTap,
-      icon: Icon(selected ? selectedIcon : icon),
+    String text;
+    Color bg;
+    Color fg;
+    IconData icon;
+
+    if (daysUntil < 0) {
+      text = "Expired";
+      bg = const Color(0xFFFFE5E5);
+      fg = const Color(0xFFC62828);
+      icon = Icons.error_outline;
+    } else if (daysUntil <= 3) {
+      text = "$daysUntil d left";
+      bg = const Color(0xFFFFF0D9);
+      fg = const Color(0xFFB26A00);
+      icon = Icons.schedule_outlined;
+    } else {
+      text = "Fresh";
+      bg = const Color(0xFFE3F6EA);
+      fg = const Color(0xFF2E7D32);
+      icon = Icons.check_circle_outline;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: fg),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -477,24 +570,30 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: const [
-            Icon(Icons.kitchen_outlined, size: 40),
-            SizedBox(height: 12),
-            Text(
-              "No items found.",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.kitchen_outlined, size: 42),
+          SizedBox(height: 12),
+          Text(
+            "No items found",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
             ),
-            SizedBox(height: 6),
-            Text(
-              "Try another category or add a new item with the + button.",
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            "Try another category or add a new item with the + button.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.black54),
+          ),
+        ],
       ),
     );
   }
@@ -509,35 +608,49 @@ class _ProfilePlaceholderPage extends StatelessWidget {
     final user = auth.currentUser;
 
     return SafeArea(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.person_outline, size: 72),
-              const SizedBox(height: 16),
-              const Text(
-                'Profile',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircleAvatar(
+                  radius: 34,
+                  child: Icon(Icons.person_outline, size: 34),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                user?.email ?? 'No email found',
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () async {
-                  await auth.signOut();
-                },
-                icon: const Icon(Icons.logout),
-                label: const Text('Logout'),
-              ),
-            ],
+                const SizedBox(height: 16),
+                const Text(
+                  'Profile',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  user?.email ?? 'No email found',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: () async {
+                    await auth.signOut();
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Logout'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

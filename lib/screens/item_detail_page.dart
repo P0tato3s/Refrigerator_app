@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/food_item.dart';
 import '../data/food_store.dart';
+import 'add_item_page.dart';
 
 class ItemDetailPage extends StatelessWidget {
   final FoodItem item;
@@ -12,6 +13,51 @@ class ItemDetailPage extends StatelessWidget {
     required this.store,
   });
 
+  void _openEdit(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddItemPage(
+          store: store,
+          existingItem: item,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteItem(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Delete item"),
+          content: Text("Are you sure you want to delete ${item.name}?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Delete"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    await store.deleteItem(item.id);
+
+    if (context.mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("${item.name} deleted")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final days = item.daysUntilExpiry(DateTime.now());
@@ -21,7 +67,7 @@ class ItemDetailPage extends StatelessWidget {
         title: const Text("Item Details"),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () => _openEdit(context),
             icon: const Icon(Icons.edit_outlined),
           ),
         ],
@@ -42,6 +88,17 @@ class ItemDetailPage extends StatelessWidget {
                       height: 180,
                       width: double.infinity,
                       fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) {
+                        return Container(
+                          height: 180,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F0F2),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(Icons.broken_image_outlined, size: 48),
+                        );
+                      },
                     ),
                   )
                 else
@@ -80,12 +137,7 @@ class ItemDetailPage extends StatelessWidget {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () async {
-                          await store.deleteItem(item.id);
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                          }
-                        },
+                        onPressed: () => _deleteItem(context),
                         icon: const Icon(Icons.delete_outline),
                         label: const Text("Delete"),
                       ),
@@ -93,7 +145,7 @@ class ItemDetailPage extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () {},
+                        onPressed: () => _openEdit(context),
                         icon: const Icon(Icons.edit_outlined),
                         label: const Text("Edit"),
                       ),

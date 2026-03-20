@@ -5,8 +5,15 @@ import '../services/image_service.dart';
 
 class AddItemPage extends StatefulWidget {
   final FoodStore store;
+  final FoodItem? existingItem;
 
-  const AddItemPage({super.key, required this.store});
+  const AddItemPage({
+    super.key,
+    required this.store,
+    this.existingItem,
+  });
+
+  bool get isEditMode => existingItem != null;
 
   @override
   State<AddItemPage> createState() => _AddItemPageState();
@@ -14,16 +21,33 @@ class AddItemPage extends StatefulWidget {
 
 class _AddItemPageState extends State<AddItemPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController nameCtrl = TextEditingController();
-  final TextEditingController qtyCtrl = TextEditingController(text: "1");
+  late final TextEditingController nameCtrl;
+  late final TextEditingController qtyCtrl;
 
-  String category = "Produce";
-  String unit = "pcs";
+  late String category;
+  late String unit;
   DateTime? expiresOn;
 
   bool isSaving = false;
   bool isLoadingPreview = false;
   String? previewImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final item = widget.existingItem;
+
+    nameCtrl = TextEditingController(text: item?.name ?? "");
+    qtyCtrl = TextEditingController(
+      text: item != null ? item.quantity.toString() : "1",
+    );
+
+    category = item?.category ?? "Produce";
+    unit = item?.unit ?? "pcs";
+    expiresOn = item?.expiresOn;
+    previewImageUrl = item?.photoUrl;
+  }
 
   @override
   void dispose() {
@@ -83,7 +107,7 @@ class _AddItemPageState extends State<AddItemPage> {
       imageUrl ??= await ImageService.fetchFoodImage(itemName);
 
       final item = FoodItem(
-        id: '',
+        id: widget.existingItem?.id ?? '',
         name: itemName,
         category: category,
         quantity: int.tryParse(qtyCtrl.text.trim()) ?? 1,
@@ -92,7 +116,11 @@ class _AddItemPageState extends State<AddItemPage> {
         photoUrl: imageUrl,
       );
 
-      await widget.store.addItem(item);
+      if (widget.isEditMode) {
+        await widget.store.updateItem(item);
+      } else {
+        await widget.store.addItem(item);
+      }
 
       if (!mounted) return;
       Navigator.pop(context);
@@ -155,8 +183,12 @@ class _AddItemPageState extends State<AddItemPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditMode = widget.isEditMode;
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Add Item")),
+      appBar: AppBar(
+        title: Text(isEditMode ? "Edit Item" : "Add Item"),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -264,7 +296,11 @@ class _AddItemPageState extends State<AddItemPage> {
             const SizedBox(height: 24),
             FilledButton(
               onPressed: isSaving ? null : _saveItem,
-              child: Text(isSaving ? "Saving..." : "Save"),
+              child: Text(
+                isSaving
+                    ? (isEditMode ? "Saving..." : "Adding...")
+                    : (isEditMode ? "Save Changes" : "Save"),
+              ),
             ),
           ],
         ),

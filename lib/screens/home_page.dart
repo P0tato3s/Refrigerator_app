@@ -21,6 +21,27 @@ class _HomePageState extends State<HomePage> {
   int navIndex = 0;
   String selectedCategory = "All";
   String searchQuery = "";
+  final TextEditingController searchCtrl = TextEditingController();
+  late final Stream<List<FoodItem>> _itemsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _itemsStream = widget.store.watchItems();
+  }
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    setState(() {
+      searchCtrl.clear();
+      searchQuery = "";
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +50,7 @@ class _HomePageState extends State<HomePage> {
         index: navIndex,
         children: [
           StreamBuilder<List<FoodItem>>(
-            stream: widget.store.watchItems(),
+            stream: _itemsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const SafeArea(
@@ -64,9 +85,11 @@ class _HomePageState extends State<HomePage> {
                 categories: categories,
                 selectedCategory: selectedCategory,
                 searchQuery: searchQuery,
+                searchCtrl: searchCtrl,
                 onSelectCategory: (c) => setState(() => selectedCategory = c),
                 onSearchChanged: (value) =>
                     setState(() => searchQuery = value.trim()),
+                onClearSearch: _clearSearch,
                 onOpenInventory: () => setState(() => navIndex = 1),
               );
             },
@@ -124,8 +147,10 @@ class _HomeTab extends StatelessWidget {
   final List<String> categories;
   final String selectedCategory;
   final String searchQuery;
+  final TextEditingController searchCtrl;
   final ValueChanged<String> onSelectCategory;
   final ValueChanged<String> onSearchChanged;
+  final VoidCallback onClearSearch;
   final VoidCallback onOpenInventory;
 
   const _HomeTab({
@@ -134,20 +159,25 @@ class _HomeTab extends StatelessWidget {
     required this.categories,
     required this.selectedCategory,
     required this.searchQuery,
+    required this.searchCtrl,
     required this.onSelectCategory,
     required this.onSearchChanged,
+    required this.onClearSearch,
     required this.onOpenInventory,
   });
 
   @override
   Widget build(BuildContext context) {
+    final normalizedQuery = searchQuery.toLowerCase();
+
     final filtered = items.where((item) {
       final matchesCategory =
           selectedCategory == "All" || item.category == selectedCategory;
 
-      final matchesSearch = searchQuery.isEmpty ||
-          item.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
-          item.category.toLowerCase().contains(searchQuery.toLowerCase());
+      final matchesSearch = normalizedQuery.isEmpty ||
+          item.name.toLowerCase().contains(normalizedQuery) ||
+          item.category.toLowerCase().contains(normalizedQuery) ||
+          item.unit.toLowerCase().contains(normalizedQuery);
 
       return matchesCategory && matchesSearch;
     }).toList();
@@ -165,8 +195,10 @@ class _HomeTab extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           _SearchBar(
+            controller: searchCtrl,
             hint: "Search items",
             onChanged: onSearchChanged,
+            onClear: onClearSearch,
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -295,7 +327,13 @@ class _Header extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Notifications coming soon"),
+                      ),
+                    );
+                  },
                   icon: const Icon(Icons.notifications_none),
                 ),
               ),
@@ -376,30 +414,53 @@ class _StatCard extends StatelessWidget {
 }
 
 class _SearchBar extends StatelessWidget {
+  final TextEditingController controller;
   final String hint;
   final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
 
   const _SearchBar({
+    required this.controller,
     required this.hint,
     required this.onChanged,
+    required this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
+      controller: controller,
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: const Icon(Icons.search),
-        suffixIcon: Container(
+        suffixIcon: controller.text.isEmpty
+            ? Container(
           margin: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: const Color(0xFFF0F2F4),
             borderRadius: BorderRadius.circular(14),
           ),
           child: IconButton(
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Advanced filters coming soon"),
+                ),
+              );
+            },
             icon: const Icon(Icons.tune),
+          ),
+        )
+            : Container(
+          margin: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F2F4),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: IconButton(
+            onPressed: onClear,
+            icon: const Icon(Icons.close),
           ),
         ),
       ),

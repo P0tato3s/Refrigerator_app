@@ -7,6 +7,7 @@ import 'add_item_page.dart';
 import 'inventory_page.dart';
 import 'recipes_page.dart';
 import 'item_detail_page.dart';
+import 'profile_page.dart';
 
 class HomePage extends StatefulWidget {
   final FoodStore store;
@@ -96,7 +97,7 @@ class _HomePageState extends State<HomePage> {
           ),
           InventoryPage(store: widget.store),
           RecipesPage(store: widget.store),
-          const _ProfilePlaceholderPage(),
+          ProfilePage(store: widget.store),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -655,65 +656,6 @@ class _EmptyState extends StatelessWidget {
             style: TextStyle(color: Colors.black54),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ProfilePlaceholderPage extends StatelessWidget {
-  const _ProfilePlaceholderPage();
-
-  @override
-  Widget build(BuildContext context) {
-    final auth = AuthService();
-    final user = auth.currentUser;
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Center(
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircleAvatar(
-                  radius: 34,
-                  child: Icon(Icons.person_outline, size: 34),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Profile',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  user?.email ?? 'No email found',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () async {
-                    await auth.signOut();
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Logout'),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

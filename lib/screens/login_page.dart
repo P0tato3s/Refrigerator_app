@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // <-- Added Firebase Auth import
 import '../services/auth_service.dart';
 import 'signup_page.dart';
 
@@ -35,17 +36,114 @@ class _LoginPageState extends State<LoginPage> {
         email: _emailCtrl.text,
         password: _passwordCtrl.text,
       );
+    } on FirebaseAuthException catch (e) {
+      // 1. Catch Firebase-specific errors first
+      if (!mounted) return;
+
+      String errorMessage = 'An error occurred during login.';
+
+      // Check the specific error code from Firebase
+      if (e.code == 'invalid-credential' || e.code == 'user-not-found' || e.code == 'wrong-password') {
+        errorMessage = 'Incorrect email or password. Please try again.';
+      } else if (e.code == 'user-disabled') {
+        errorMessage = 'This account has been disabled.';
+      } else if (e.code == 'too-many-requests') {
+        errorMessage = 'Too many failed attempts. Please try again later.';
+      } else {
+        // Fallback for other Firebase errors (like network issues)
+        errorMessage = e.message ?? errorMessage;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red.shade800, // Optional: make it look like an error!
+        ),
+      );
     } catch (e) {
+      // 2. Catch any other generic errors
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed: $e')),
+        const SnackBar(
+          content: Text('An unexpected error occurred. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
       }
     }
+  }
+
+  // <-- New Method to handle the Forgot Password Dialog -->
+  Future<void> _showForgotPasswordDialog() async {
+    // We pre-fill the dialog with whatever email they might have already typed
+    final resetEmailCtrl = TextEditingController(text: _emailCtrl.text);
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) { // <-- Using our dialogContext trick!
+        return AlertDialog(
+          title: const Text('Reset Password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Enter your email to receive a password reset link.'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: resetEmailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final email = resetEmailCtrl.text.trim();
+
+                // Basic validation before trying to send
+                if (email.isEmpty || !email.contains('@')) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(content: Text('Please enter a valid email')),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext); // Close the dialog first
+
+                try {
+                  await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                  if (!mounted) return;
+
+                  // Use the main context for the success message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Password reset email sent to $email')),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+              child: const Text('Send Link'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -125,6 +223,17 @@ class _LoginPageState extends State<LoginPage> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 8),
+
+                    // <-- Added Forgot Password Button -->
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _showForgotPasswordDialog,
+                        child: const Text('Forgot Password?'),
+                      ),
+                    ),
+
                     const SizedBox(height: 24),
                     FilledButton(
                       onPressed: isLoading ? null : _login,

@@ -69,7 +69,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _showEmailDialog(String email) async {
     await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text("Account Email"),
           content: Column(
@@ -89,7 +89,9 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: email));
                 if (!mounted) return;
-                Navigator.pop(context);
+
+                Navigator.pop(dialogContext);
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("Email copied")),
                 );
@@ -97,7 +99,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: const Text("Copy"),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text("Done"),
             ),
           ],
@@ -124,24 +126,55 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _showPasswordDialog(String email) async {
     await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
-          title: const Text("Password Settings"),
-          content: Text(
-            "You are signed in as:\n\n$email\n\n"
-                "You can send a password reset email to this address.",
+          title: const Text("Reset Password"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "We will send a password reset link to:",
+              ),
+              const SizedBox(height: 12),
+              Text(
+                email,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text("Cancel"),
             ),
             FilledButton(
               onPressed: () async {
-                Navigator.pop(context);
-                await _sendPasswordReset(email);
+                Navigator.pop(dialogContext);
+
+                try {
+                  await FirebaseAuth.instance
+                      .sendPasswordResetEmail(email: email);
+
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Password reset email sent"),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Error: $e"),
+                    ),
+                  );
+                }
               },
-              child: const Text("Send Reset Email"),
+              child: const Text("Send Email"),
             ),
           ],
         );
@@ -153,7 +186,7 @@ class _ProfilePageState extends State<ProfilePage> {
     await showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (context) {
+      builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
@@ -182,8 +215,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 8),
                   FilledButton(
                     onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(this.context).showSnackBar(
+                      Navigator.pop(sheetContext);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text("Notification settings updated"),
                         ),
@@ -204,7 +238,7 @@ class _ProfilePageState extends State<ProfilePage> {
     await showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (context) {
+      builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
@@ -242,8 +276,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(this.context).showSnackBar(
+                      Navigator.pop(sheetContext);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text("Recipe preferences updated"),
                         ),
@@ -263,7 +298,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _showCategoriesAndUnits() async {
     await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text("Categories & Units"),
           content: SizedBox(
@@ -281,7 +316,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     value: categoryHintsEnabled,
                     onChanged: (value) {
                       setState(() => categoryHintsEnabled = value);
-                      Navigator.pop(context);
+                      Navigator.pop(dialogContext);
                       _showCategoriesAndUnits();
                     },
                   ),
@@ -317,7 +352,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           actions: [
             FilledButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text("Done"),
             ),
           ],
@@ -329,7 +364,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _showAboutDialog() async {
     await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text("About This App"),
           content: const Column(
@@ -355,7 +390,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           actions: [
             FilledButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text("Close"),
             ),
           ],

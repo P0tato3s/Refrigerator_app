@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // <-- Added Firebase Auth import
 import '../services/auth_service.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -39,12 +40,37 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (!mounted) return;
-      Navigator.pop(context);
-    } catch (e) {
+      Navigator.pop(context); // Go back to login/home on success
+
+    } on FirebaseAuthException catch (e) { // <-- Catch specific Firebase errors
+      if (!mounted) return;
+
+      String errorMessage = 'An error occurred during sign up.';
+
+      if (e.code == 'weak-password') {
+        errorMessage = 'This password is too weak. Please use at least 6 characters.';
+      } else if (e.code == 'email-already-in-use') {
+        errorMessage = 'An account already exists for that email. Try logging in!';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      } else {
+        errorMessage = e.message ?? errorMessage;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red.shade800, // Make it clearly an error
+        ),
+      );
+    } catch (e) { // <-- Catch any other random errors
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign up failed: $e')),
+        const SnackBar(
+          content: Text('An unexpected error occurred. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) {

@@ -18,6 +18,10 @@ class _RecipesPageState extends State<RecipesPage> {
   String selectedFilter = "All";
   late final Stream<List<FoodItem>> _itemsStream;
 
+  // Cache variables to prevent FutureBuilder from resetting during search/hot reload
+  List<FoodItem>? _cachedItems;
+  Future<List<MatchedRecipe>>? _cachedRecipesFuture;
+
   @override
   void initState() {
     super.initState();
@@ -64,10 +68,18 @@ class _RecipesPageState extends State<RecipesPage> {
 
           final items = snapshot.data ?? [];
 
-          return FutureBuilder<List<MatchedRecipe>>(
-            future: RecipeMatchService.attachImages(
+          // Only generate a new Future if the stream actually gave us new items.
+          // This allows our search bar's setState to filter the list in real-time
+          // without triggering a loading spinner every time you type a letter!
+          if (_cachedItems != items || _cachedRecipesFuture == null) {
+            _cachedItems = items;
+            _cachedRecipesFuture = RecipeMatchService.attachImages(
               RecipeMatchService.matchRecipes(items),
-            ),
+            );
+          }
+
+          return FutureBuilder<List<MatchedRecipe>>(
+            future: _cachedRecipesFuture, // Use the cached future
             builder: (context, recipeSnapshot) {
               if (recipeSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -155,9 +167,9 @@ class _RecipesPageState extends State<RecipesPage> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Text(
+                  const Text(
                     "Recipes Based on Your Fridge",
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),

@@ -3,7 +3,7 @@ import '../models/food_item.dart';
 import '../data/food_store.dart';
 import 'add_item_page.dart';
 
-class ItemDetailPage extends StatelessWidget {
+class ItemDetailPage extends StatefulWidget {
   final FoodItem item;
   final FoodStore store;
 
@@ -13,25 +13,44 @@ class ItemDetailPage extends StatelessWidget {
     required this.store,
   });
 
-  void _openEdit(BuildContext context) {
-    Navigator.push(
+  @override
+  State<ItemDetailPage> createState() => _ItemDetailPageState();
+}
+
+class _ItemDetailPageState extends State<ItemDetailPage> {
+  late FoodItem currentItem;
+
+  @override
+  void initState() {
+    super.initState();
+    currentItem = widget.item;
+  }
+
+  Future<void> _openEdit() async {
+    final updatedItem = await Navigator.push<FoodItem>(
       context,
       MaterialPageRoute(
         builder: (_) => AddItemPage(
-          store: store,
-          existingItem: item,
+          store: widget.store,
+          existingItem: currentItem,
         ),
       ),
     );
+
+    if (updatedItem != null && mounted) {
+      setState(() {
+        currentItem = updatedItem;
+      });
+    }
   }
 
-  Future<void> _deleteItem(BuildContext context) async {
+  Future<void> _deleteItem() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text("Delete item"),
-          content: Text("Are you sure you want to delete ${item.name}?"),
+          content: Text("Are you sure you want to delete ${currentItem.name}?"),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -48,26 +67,26 @@ class ItemDetailPage extends StatelessWidget {
 
     if (confirmed != true) return;
 
-    await store.deleteItem(item.id);
+    await widget.store.deleteItem(currentItem.id);
 
-    if (context.mounted) {
+    if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("${item.name} deleted")),
+        SnackBar(content: Text("${currentItem.name} deleted")),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final days = item.daysUntilExpiry(DateTime.now());
+    final days = currentItem.daysUntilExpiry(DateTime.now());
 
     return Scaffold(
       appBar: AppBar(
         title: const Text("Item Details"),
         actions: [
           IconButton(
-            onPressed: () => _openEdit(context),
+            onPressed: _openEdit,
             icon: const Icon(Icons.edit_outlined),
           ),
         ],
@@ -80,11 +99,11 @@ class ItemDetailPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (item.photoUrl != null && item.photoUrl!.isNotEmpty)
+                if (currentItem.photoUrl != null && currentItem.photoUrl!.isNotEmpty)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: Image.network(
-                      item.photoUrl!,
+                      currentItem.photoUrl!,
                       height: 180,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -113,18 +132,18 @@ class ItemDetailPage extends StatelessWidget {
                   ),
                 const SizedBox(height: 16),
                 Text(
-                  item.name,
+                  currentItem.name,
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text("Category: ${item.category}"),
+                Text("Category: ${currentItem.category}"),
                 const SizedBox(height: 6),
-                Text("Quantity: ${item.quantity} ${item.unit}"),
+                Text("Quantity: ${currentItem.quantity} ${currentItem.unit}"),
                 const SizedBox(height: 6),
-                Text("Expires on: ${_formatDate(item.expiresOn)}"),
+                Text("Expires on: ${_formatDate(currentItem.expiresOn)}"),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -137,7 +156,7 @@ class ItemDetailPage extends StatelessWidget {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _deleteItem(context),
+                        onPressed: _deleteItem,
                         icon: const Icon(Icons.delete_outline),
                         label: const Text("Delete"),
                       ),
@@ -145,7 +164,7 @@ class ItemDetailPage extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () => _openEdit(context),
+                        onPressed: _openEdit,
                         icon: const Icon(Icons.edit_outlined),
                         label: const Text("Edit"),
                       ),

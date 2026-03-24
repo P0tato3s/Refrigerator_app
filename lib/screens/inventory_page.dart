@@ -3,17 +3,47 @@ import '../data/food_store.dart';
 import '../models/food_item.dart';
 import 'item_detail_page.dart';
 
-class InventoryPage extends StatelessWidget {
+class InventoryPage extends StatefulWidget {
   final FoodStore store;
 
   const InventoryPage({super.key, required this.store});
 
   @override
+  State<InventoryPage> createState() => _InventoryPageState();
+}
+
+class _InventoryPageState extends State<InventoryPage> {
+  final TextEditingController searchCtrl = TextEditingController();
+  String searchQuery = "";
+  late final Stream<List<FoodItem>> _itemsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _itemsStream = widget.store.watchItems();
+  }
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    setState(() {
+      searchCtrl.clear();
+      searchQuery = "";
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Inventory")),
+      appBar: AppBar(
+        title: const Text("Inventory"),
+      ),
       body: StreamBuilder<List<FoodItem>>(
-        stream: store.watchItems(),
+        stream: _itemsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -33,25 +63,90 @@ class InventoryPage extends StatelessWidget {
 
           final items = snapshot.data ?? [];
 
-          if (items.isEmpty) {
-            return const Center(
-              child: Text("No items in your fridge yet."),
-            );
-          }
+          final filteredItems = items.where((item) {
+            final q = searchQuery.toLowerCase();
+            if (q.isEmpty) return true;
 
-          final sortedItems = [...items]
+            return item.name.toLowerCase().contains(q) ||
+                item.category.toLowerCase().contains(q) ||
+                item.unit.toLowerCase().contains(q);
+          }).toList()
             ..sort((a, b) => a.expiresOn.compareTo(b.expiresOn));
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: sortedItems.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 10),
-            itemBuilder: (context, index) => _FoodRow(
-              item: sortedItems[index],
-              store: store,
-            ),
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: _InventorySearchBar(
+                  controller: searchCtrl,
+                  onChanged: (value) {
+                    setState(() => searchQuery = value.trim());
+                  },
+                  onClear: _clearSearch,
+                ),
+              ),
+              Expanded(
+                child: items.isEmpty
+                    ? const Center(
+                  child: Text("No items in your fridge yet."),
+                )
+                    : filteredItems.isEmpty
+                    ? const Center(
+                  child: Text("No matching items found."),
+                )
+                    : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filteredItems.length,
+                  separatorBuilder: (context, index) =>
+                  const SizedBox(height: 10),
+                  itemBuilder: (context, index) => _FoodRow(
+                    item: filteredItems[index],
+                    store: widget.store,
+                  ),
+                ),
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _InventorySearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  const _InventorySearchBar({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: "Search inventory",
+        prefixIcon: const Icon(Icons.search),
+        suffixIcon: controller.text.isEmpty
+            ? IconButton(
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Advanced filters coming soon"),
+              ),
+            );
+          },
+          icon: const Icon(Icons.tune),
+        )
+            : IconButton(
+          onPressed: onClear,
+          icon: const Icon(Icons.close),
+        ),
       ),
     );
   }

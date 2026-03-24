@@ -95,7 +95,7 @@ class _HomePageState extends State<HomePage> {
             },
           ),
           InventoryPage(store: widget.store),
-          const RecipesPage(),
+          RecipesPage(store: widget.store),
           const _ProfilePlaceholderPage(),
         ],
       ),

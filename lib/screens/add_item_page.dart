@@ -24,6 +24,42 @@ class _AddItemPageState extends State<AddItemPage> {
   late final TextEditingController nameCtrl;
   late final TextEditingController qtyCtrl;
 
+  static const List<String> categoryOptions = [
+    "Produce",
+    "Dairy",
+    "Meat",
+    "Seafood",
+    "Grains",
+    "Bakery",
+    "Frozen",
+    "Canned",
+    "Condiments",
+    "Snacks",
+    "Drinks",
+    "Spices",
+    "Prepared Meals",
+    "Desserts",
+    "Other",
+  ];
+
+  static const List<String> unitOptions = [
+    "pcs",
+    "box",
+    "bag",
+    "carton",
+    "bottle",
+    "can",
+    "jar",
+    "pack",
+    "lbs",
+    "oz",
+    "g",
+    "kg",
+    "ml",
+    "L",
+    "cups",
+  ];
+
   late String category;
   late String unit;
   DateTime? expiresOn;
@@ -123,7 +159,7 @@ class _AddItemPageState extends State<AddItemPage> {
       }
 
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context, item);
     } catch (e) {
       if (!mounted) return;
 
@@ -223,14 +259,15 @@ class _AddItemPageState extends State<AddItemPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: category,
-              items: const [
-                DropdownMenuItem(value: "Produce", child: Text("Produce")),
-                DropdownMenuItem(value: "Dairy", child: Text("Dairy")),
-                DropdownMenuItem(value: "Meat", child: Text("Meat")),
-                DropdownMenuItem(value: "Snacks", child: Text("Snacks")),
-                DropdownMenuItem(value: "Drinks", child: Text("Drinks")),
-              ],
+              value: categoryOptions.contains(category) ? category : "Other",
+              items: categoryOptions
+                  .map(
+                    (c) => DropdownMenuItem(
+                  value: c,
+                  child: Text(c),
+                ),
+              )
+                  .toList(),
               onChanged: (value) {
                 setState(() => category = value ?? "Produce");
               },
@@ -257,15 +294,15 @@ class _AddItemPageState extends State<AddItemPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: unit,
-              items: const [
-                DropdownMenuItem(value: "pcs", child: Text("pcs")),
-                DropdownMenuItem(value: "box", child: Text("box")),
-                DropdownMenuItem(value: "bag", child: Text("bag")),
-                DropdownMenuItem(value: "carton", child: Text("carton")),
-                DropdownMenuItem(value: "lbs", child: Text("lbs")),
-                DropdownMenuItem(value: "cups", child: Text("cups")),
-              ],
+              value: unitOptions.contains(unit) ? unit : "pcs",
+              items: unitOptions
+                  .map(
+                    (u) => DropdownMenuItem(
+                  value: u,
+                  child: Text(u),
+                ),
+              )
+                  .toList(),
               onChanged: (value) {
                 setState(() => unit = value ?? "pcs");
               },

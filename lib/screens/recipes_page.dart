@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- Added SharedPreferences
 import '../data/food_store.dart';
 import '../models/food_item.dart';
 import '../services/recipe_match_service.dart';
@@ -18,14 +19,28 @@ class _RecipesPageState extends State<RecipesPage> {
   String selectedFilter = "All";
   late final Stream<List<FoodItem>> _itemsStream;
 
-  // Cache variables to prevent FutureBuilder from resetting during search/hot reload
+  // Cache variables to prevent FutureBuilder from resetting
   List<FoodItem>? _cachedItems;
   Future<List<MatchedRecipe>>? _cachedRecipesFuture;
+
+  // 👇 ADDED: State variable to track if suggestions are enabled
+  bool _suggestionsEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _itemsStream = widget.store.watchItems();
+    _loadPreferences(); // Load preference when the page first initializes
+  }
+
+  // 👇 ADDED: Function to fetch the saved preference
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _suggestionsEnabled = prefs.getBool('recipeSuggestionsEnabled') ?? true;
+      });
+    }
   }
 
   @override
@@ -43,11 +58,34 @@ class _RecipesPageState extends State<RecipesPage> {
 
   @override
   Widget build(BuildContext context) {
+
+    // 👇 ADDED: The "Tab-Swap Trick"
+    // Because the user might change the setting on the Profile tab and swipe back here,
+    // we quickly check the latest preference every time the page draws.
+    // If it changed, we update the state to instantly redraw the screen!
+    SharedPreferences.getInstance().then((prefs) {
+      final isEnabled = prefs.getBool('recipeSuggestionsEnabled') ?? true;
+      if (isEnabled != _suggestionsEnabled && mounted) {
+        setState(() => _suggestionsEnabled = isEnabled);
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Recipes"),
       ),
-      body: StreamBuilder<List<FoodItem>>(
+      // 👇 ADDED: Conditionally show the whole page OR the disabled message
+      body: !_suggestionsEnabled
+          ? ListView(
+        padding: const EdgeInsets.all(16),
+        children: const [
+          SizedBox(height: 40),
+          _EmptyRecipeState(
+            message: "Smart recipe suggestions are currently disabled.\n\nYou can turn them back on in the Preferences section of your Profile.",
+          ),
+        ],
+      )
+          : StreamBuilder<List<FoodItem>>(
         stream: _itemsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -69,8 +107,6 @@ class _RecipesPageState extends State<RecipesPage> {
           final items = snapshot.data ?? [];
 
           // Only generate a new Future if the stream actually gave us new items.
-          // This allows our search bar's setState to filter the list in real-time
-          // without triggering a loading spinner every time you type a letter!
           if (_cachedItems != items || _cachedRecipesFuture == null) {
             _cachedItems = items;
             _cachedRecipesFuture = RecipeMatchService.attachImages(
@@ -79,7 +115,7 @@ class _RecipesPageState extends State<RecipesPage> {
           }
 
           return FutureBuilder<List<MatchedRecipe>>(
-            future: _cachedRecipesFuture, // Use the cached future
+            future: _cachedRecipesFuture,
             builder: (context, recipeSnapshot) {
               if (recipeSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());

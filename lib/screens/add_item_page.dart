@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/food_store.dart';
 import '../models/food_item.dart';
 import '../services/image_service.dart';
+import '../services/notification_service.dart'; // 👇 ADDED IMPORT
 
 class AddItemPage extends StatefulWidget {
   final FoodStore store;
@@ -25,39 +27,14 @@ class _AddItemPageState extends State<AddItemPage> {
   late final TextEditingController qtyCtrl;
 
   static const List<String> categoryOptions = [
-    "Produce",
-    "Dairy",
-    "Meat",
-    "Seafood",
-    "Grains",
-    "Bakery",
-    "Frozen",
-    "Canned",
-    "Condiments",
-    "Snacks",
-    "Drinks",
-    "Spices",
-    "Prepared Meals",
-    "Desserts",
-    "Other",
+    "Produce", "Dairy", "Meat", "Seafood", "Grains", "Bakery",
+    "Frozen", "Canned", "Condiments", "Snacks", "Drinks", "Spices",
+    "Prepared Meals", "Desserts", "Other",
   ];
 
   static const List<String> unitOptions = [
-    "pcs",
-    "box",
-    "bag",
-    "carton",
-    "bottle",
-    "can",
-    "jar",
-    "pack",
-    "lbs",
-    "oz",
-    "g",
-    "kg",
-    "ml",
-    "L",
-    "cups",
+    "pcs", "box", "bag", "carton", "bottle", "can", "jar", "pack",
+    "lbs", "oz", "g", "kg", "ml", "L", "cups",
   ];
 
   late String category;
@@ -68,12 +45,14 @@ class _AddItemPageState extends State<AddItemPage> {
   bool isLoadingPreview = false;
   String? previewImageUrl;
 
+  bool _showCategoryHints = true;
+  bool _expiryAlertsEnabled = true; // 👇 NEW: Track notification preference
+
   @override
   void initState() {
     super.initState();
 
     final item = widget.existingItem;
-
     nameCtrl = TextEditingController(text: item?.name ?? "");
     qtyCtrl = TextEditingController(
       text: item != null ? item.quantity.toString() : "1",
@@ -83,6 +62,19 @@ class _AddItemPageState extends State<AddItemPage> {
     unit = item?.unit ?? "pcs";
     expiresOn = item?.expiresOn;
     previewImageUrl = item?.photoUrl;
+
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _showCategoryHints = prefs.getBool('categoryHintsEnabled') ?? true;
+        // 👇 Load the actual notification toggle from the profile
+        _expiryAlertsEnabled = prefs.getBool('expiryAlertsEnabled') ?? true;
+      });
+    }
   }
 
   @override
@@ -114,7 +106,6 @@ class _AddItemPageState extends State<AddItemPage> {
 
     try {
       final url = await ImageService.fetchFoodImage(itemName);
-
       if (!mounted) return;
       setState(() => previewImageUrl = url);
     } finally {
@@ -138,31 +129,43 @@ class _AddItemPageState extends State<AddItemPage> {
 
     try {
       final itemName = nameCtrl.text.trim();
-
       String? imageUrl = previewImageUrl;
       imageUrl ??= await ImageService.fetchFoodImage(itemName);
+
+      final finalCategory = _showCategoryHints ? category : "Other";
+      final finalUnit = _showCategoryHints ? unit : "pcs";
 
       final item = FoodItem(
         id: widget.existingItem?.id ?? '',
         name: itemName,
-        category: category,
+        category: finalCategory,
         quantity: int.tryParse(qtyCtrl.text.trim()) ?? 1,
-        unit: unit,
+        unit: finalUnit,
         expiresOn: expiresOn!,
         photoUrl: imageUrl,
       );
 
+      // Save to database
       if (widget.isEditMode) {
         await widget.store.updateItem(item);
       } else {
         await widget.store.addItem(item);
       }
 
+      // 👇 SCHEDULE NOTIFICATION LOGIC
+      if (_expiryAlertsEnabled) {
+        // We use the unique ID of the item so we don't overlap notifications
+        await NotificationService.scheduleExpiryNotification(
+          id: item.id.hashCode,
+          itemName: item.name,
+          expiryDate: item.expiresOn,
+        );
+      }
+
       if (!mounted) return;
       Navigator.pop(context, item);
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to save item: $e")),
       );
@@ -196,25 +199,14 @@ class _AddItemPageState extends State<AddItemPage> {
         fit: BoxFit.cover,
         width: double.infinity,
         errorBuilder: (context, error, stackTrace) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.broken_image_outlined, size: 36),
-                SizedBox(height: 8),
-                Text("Image failed to load"),
-              ],
-            ),
-          );
+          return const Center(child: Icon(Icons.broken_image_outlined, size: 36));
         },
       ),
     );
   }
 
   String _formatDate(DateTime d) {
-    final mm = d.month.toString().padLeft(2, '0');
-    final dd = d.day.toString().padLeft(2, '0');
-    return "${d.year}-$mm-$dd";
+    return "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
   }
 
   @override
@@ -249,95 +241,47 @@ class _AddItemPageState extends State<AddItemPage> {
                   icon: const Icon(Icons.image_search_outlined),
                 ),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return "Please enter an item name";
-                }
-                return null;
-              },
+              validator: (value) => (value == null || value.trim().isEmpty) ? "Enter a name" : null,
               onFieldSubmitted: (_) => _fetchPreviewImage(),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: categoryOptions.contains(category) ? category : "Other",
-              items: categoryOptions
-                  .map(
-                    (c) => DropdownMenuItem(
-                  value: c,
-                  child: Text(c),
-                ),
-              )
-                  .toList(),
-              onChanged: (value) {
-                setState(() => category = value ?? "Produce");
-              },
-              decoration: const InputDecoration(
-                labelText: "Category",
-                prefixIcon: Icon(Icons.category_outlined),
+            if (_showCategoryHints) ...[
+              DropdownButtonFormField<String>(
+                value: categoryOptions.contains(category) ? category : "Other",
+                items: categoryOptions.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (value) => setState(() => category = value ?? "Produce"),
+                decoration: const InputDecoration(labelText: "Category", prefixIcon: Icon(Icons.category_outlined)),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
             TextFormField(
               controller: qtyCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Quantity",
-                prefixIcon: Icon(Icons.numbers_outlined),
-              ),
-              validator: (value) {
-                final parsed = int.tryParse(value ?? "");
-                if (parsed == null || parsed <= 0) {
-                  return "Enter a valid quantity";
-                }
-                return null;
-              },
+              decoration: const InputDecoration(labelText: "Quantity", prefixIcon: Icon(Icons.numbers_outlined)),
+              validator: (value) => (int.tryParse(value ?? "") ?? 0) <= 0 ? "Enter quantity" : null,
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: unitOptions.contains(unit) ? unit : "pcs",
-              items: unitOptions
-                  .map(
-                    (u) => DropdownMenuItem(
-                  value: u,
-                  child: Text(u),
-                ),
-              )
-                  .toList(),
-              onChanged: (value) {
-                setState(() => unit = value ?? "pcs");
-              },
-              decoration: const InputDecoration(
-                labelText: "Unit",
-                prefixIcon: Icon(Icons.straighten_outlined),
+            if (_showCategoryHints) ...[
+              DropdownButtonFormField<String>(
+                value: unitOptions.contains(unit) ? unit : "pcs",
+                items: unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                onChanged: (value) => setState(() => unit = value ?? "pcs"),
+                decoration: const InputDecoration(labelText: "Unit", prefixIcon: Icon(Icons.straighten_outlined)),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
             InkWell(
               onTap: _pickDate,
               borderRadius: BorderRadius.circular(16),
               child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: "Expiration date",
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
-                ),
-                child: Text(
-                  expiresOn == null ? "Tap to select" : _formatDate(expiresOn!),
-                  style: TextStyle(
-                    color: expiresOn == null
-                        ? Theme.of(context).hintColor
-                        : null,
-                  ),
-                ),
+                decoration: const InputDecoration(labelText: "Expiration date", prefixIcon: Icon(Icons.calendar_today_outlined)),
+                child: Text(expiresOn == null ? "Tap to select" : _formatDate(expiresOn!)),
               ),
             ),
             const SizedBox(height: 24),
             FilledButton(
               onPressed: isSaving ? null : _saveItem,
-              child: Text(
-                isSaving
-                    ? (isEditMode ? "Saving..." : "Adding...")
-                    : (isEditMode ? "Save Changes" : "Save"),
-              ),
+              child: Text(isSaving ? "Saving..." : "Save"),
             ),
           ],
         ),

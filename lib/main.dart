@@ -2,6 +2,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
+// 👇 ADD THIS IMPORT
+import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,6 +11,14 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // 👇 INITIALIZE NOTIFICATIONS
+  try {
+    await NotificationService.init();
+    debugPrint("Notification Service Initialized");
+  } catch (e) {
+    debugPrint("Notification Service failed to initialize: $e");
+  }
 
   runApp(const MyApp());
 }

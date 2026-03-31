@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/food_store.dart';
 import '../models/food_item.dart';
 import '../services/auth_service.dart';
@@ -20,50 +21,41 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late final Stream<List<FoodItem>> _itemsStream;
 
+  // These will update as soon as the preferences load
   bool expiryAlertsEnabled = true;
   bool recipeSuggestionsEnabled = true;
   bool categoryHintsEnabled = true;
 
   static const List<String> supportedCategories = [
-    "Produce",
-    "Dairy",
-    "Meat",
-    "Seafood",
-    "Grains",
-    "Bakery",
-    "Frozen",
-    "Canned",
-    "Condiments",
-    "Snacks",
-    "Drinks",
-    "Spices",
-    "Prepared Meals",
-    "Desserts",
-    "Other",
+    "Produce", "Dairy", "Meat", "Seafood", "Grains", "Bakery",
+    "Frozen", "Canned", "Condiments", "Snacks", "Drinks", "Spices",
+    "Prepared Meals", "Desserts", "Other",
   ];
 
   static const List<String> supportedUnits = [
-    "pcs",
-    "box",
-    "bag",
-    "carton",
-    "bottle",
-    "can",
-    "jar",
-    "pack",
-    "lbs",
-    "oz",
-    "g",
-    "kg",
-    "ml",
-    "L",
-    "cups",
+    "pcs", "box", "bag", "carton", "bottle", "can", "jar", "pack",
+    "lbs", "oz", "g", "kg", "ml", "L", "cups",
   ];
 
   @override
   void initState() {
     super.initState();
     _itemsStream = widget.store.watchItems();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      expiryAlertsEnabled = prefs.getBool('expiryAlertsEnabled') ?? true;
+      recipeSuggestionsEnabled = prefs.getBool('recipeSuggestionsEnabled') ?? true;
+      categoryHintsEnabled = prefs.getBool('categoryHintsEnabled') ?? true;
+    });
+  }
+
+  Future<void> _savePreference(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
   }
 
   Future<void> _showEmailDialog(String email) async {
@@ -108,21 +100,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _sendPasswordReset(String email) async {
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Password reset email sent to $email")),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Could not send reset email: $e")),
-      );
-    }
-  }
-
   Future<void> _showPasswordDialog(String email) async {
     await showDialog(
       context: context,
@@ -132,15 +109,11 @@ class _ProfilePageState extends State<ProfilePage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "We will send a password reset link to:",
-              ),
+              const Text("We will send a password reset link to:"),
               const SizedBox(height: 12),
               Text(
                 email,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -154,23 +127,15 @@ class _ProfilePageState extends State<ProfilePage> {
                 Navigator.pop(dialogContext);
 
                 try {
-                  await FirebaseAuth.instance
-                      .sendPasswordResetEmail(email: email);
-
+                  await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
                   if (!mounted) return;
-
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Password reset email sent"),
-                    ),
+                    const SnackBar(content: Text("Password reset email sent")),
                   );
                 } catch (e) {
                   if (!mounted) return;
-
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("Error: $e"),
-                    ),
+                    SnackBar(content: Text("Error: $e")),
                   );
                 }
               },
@@ -203,13 +168,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text("Expiry Alerts"),
-                    subtitle: const Text(
-                      "Warn when food is expiring soon",
-                    ),
+                    subtitle: const Text("Warn when food is expiring soon"),
                     value: expiryAlertsEnabled,
                     onChanged: (value) {
                       setSheetState(() => expiryAlertsEnabled = value);
                       setState(() => expiryAlertsEnabled = value);
+                      _savePreference('expiryAlertsEnabled', value);
                     },
                   ),
                   const SizedBox(height: 8),
@@ -218,9 +182,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Navigator.pop(sheetContext);
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Notification settings updated"),
-                        ),
+                        const SnackBar(content: Text("Notification settings updated")),
                       );
                     },
                     child: const Text("Save"),
@@ -255,13 +217,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text("Enable Suggestions"),
-                    subtitle: const Text(
-                      "Recommend recipes based on your fridge items",
-                    ),
+                    subtitle: const Text("Recommend recipes based on your fridge items"),
                     value: recipeSuggestionsEnabled,
                     onChanged: (value) {
                       setSheetState(() => recipeSuggestionsEnabled = value);
                       setState(() => recipeSuggestionsEnabled = value);
+                      _savePreference('recipeSuggestionsEnabled', value);
                     },
                   ),
                   const SizedBox(height: 10),
@@ -279,9 +240,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Navigator.pop(sheetContext);
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Recipe preferences updated"),
-                        ),
+                        const SnackBar(content: Text("Recipe preferences updated")),
                       );
                     },
                     child: const Text("Save"),
@@ -310,12 +269,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text("Category Hints"),
-                    subtitle: const Text(
-                      "Show structured organization options in forms",
-                    ),
+                    subtitle: const Text("Show structured organization options in forms"),
                     value: categoryHintsEnabled,
                     onChanged: (value) {
                       setState(() => categoryHintsEnabled = value);
+                      _savePreference('categoryHintsEnabled', value);
+
                       Navigator.pop(dialogContext);
                       _showCategoriesAndUnits();
                     },
@@ -329,9 +288,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: supportedCategories
-                        .map((c) => Chip(label: Text(c)))
-                        .toList(),
+                    children: supportedCategories.map((c) => Chip(label: Text(c))).toList(),
                   ),
                   const SizedBox(height: 16),
                   const Text(
@@ -342,9 +299,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: supportedUnits
-                        .map((u) => Chip(label: Text(u)))
-                        .toList(),
+                    children: supportedUnits.map((u) => Chip(label: Text(u))).toList(),
                   ),
                 ],
               ),
@@ -371,10 +326,7 @@ class _ProfilePageState extends State<ProfilePage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "Refrigerator App",
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
+              Text("Refrigerator App", style: TextStyle(fontWeight: FontWeight.w800)),
               SizedBox(height: 8),
               Text("Version: 1.0.0 Demo"),
               SizedBox(height: 8),
@@ -399,6 +351,63 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // 👇 ADDED: The new Delete Account Dialog logic 👇
+  Future<void> _showDeleteAccountDialog() async {
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Delete Account"),
+          content: const Text(
+            "Are you sure? This will permanently delete your account and remove your access. This action cannot be undone.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text("Cancel"),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogContext); // Close the dialog
+
+                try {
+                  // Delete the user from Firebase Auth
+                  await FirebaseAuth.instance.currentUser?.delete();
+
+                } on FirebaseAuthException catch (e) {
+                  if (!mounted) return;
+
+                  if (e.code == 'requires-recent-login') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Security requirement: Please log out and log back in before deleting your account."),
+                        duration: Duration(seconds: 5),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Error deleting account: ${e.message}")),
+                    );
+                  }
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("An unexpected error occurred.")),
+                  );
+                }
+              },
+              child: const Text("Delete My Account"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = AuthService();
@@ -415,16 +424,12 @@ class _ProfilePageState extends State<ProfilePage> {
         builder: (context, snapshot) {
           final items = snapshot.data ?? [];
 
-          final expiringSoon = items
-              .where((item) {
+          final expiringSoon = items.where((item) {
             final days = item.daysUntilExpiry(DateTime.now());
             return days >= 0 && days <= 3;
-          })
-              .length;
+          }).length;
 
-          final expired = items
-              .where((item) => item.daysUntilExpiry(DateTime.now()) < 0)
-              .length;
+          final expired = items.where((item) => item.daysUntilExpiry(DateTime.now()) < 0).length;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -433,10 +438,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFFDFF3E8),
-                      Color(0xFFCDEBDA),
-                    ],
+                    colors: [Color(0xFFDFF3E8), Color(0xFFCDEBDA)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -451,10 +453,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     const SizedBox(height: 14),
                     Text(
                       displayName,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -525,17 +524,13 @@ class _ProfilePageState extends State<ProfilePage> {
               _ProfileTile(
                 icon: Icons.notifications_none,
                 title: "Notifications",
-                subtitle: expiryAlertsEnabled
-                    ? "Expiry alerts enabled"
-                    : "Expiry alerts disabled",
+                subtitle: expiryAlertsEnabled ? "Expiry alerts enabled" : "Expiry alerts disabled",
                 onTap: _showNotificationSettings,
               ),
               _ProfileTile(
                 icon: Icons.restaurant_menu_outlined,
                 title: "Recipe Recommendations",
-                subtitle: recipeSuggestionsEnabled
-                    ? "Smart suggestions enabled"
-                    : "Smart suggestions disabled",
+                subtitle: recipeSuggestionsEnabled ? "Smart suggestions enabled" : "Smart suggestions disabled",
                 onTap: _showRecipePreferences,
               ),
               _ProfileTile(
@@ -553,14 +548,36 @@ class _ProfilePageState extends State<ProfilePage> {
                 subtitle: "Version, features, and project summary",
                 onTap: _showAboutDialog,
               ),
+
               const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () async {
-                  await auth.signOut();
-                },
-                icon: const Icon(Icons.logout),
-                label: const Text("Logout"),
+
+              // 👇 UPDATED: Side-by-side Logout and Delete Account buttons 👇
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await auth.signOut();
+                      },
+                      icon: const Icon(Icons.logout),
+                      label: const Text("Logout"),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red.shade50,
+                        foregroundColor: Colors.red.shade700,
+                      ),
+                      onPressed: _showDeleteAccountDialog, // Opens the new dialog
+                      icon: const Icon(Icons.delete_forever),
+                      label: const Text("Delete Account"),
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 24), // Extra padding at the bottom for scrolling comfort
             ],
           );
         },
@@ -578,10 +595,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w800,
-      ),
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
     );
   }
 }
@@ -601,10 +615,7 @@ class _ProfileTag extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -635,18 +646,12 @@ class _ProfileStatCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black54,
-            ),
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
           ),
         ],
       ),

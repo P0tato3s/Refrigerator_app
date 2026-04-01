@@ -1,31 +1,10 @@
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
-
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
-  FlutterLocalNotificationsPlugin();
+  // We keep the functions here so your other code doesn't break,
+  // but we removed all the complex logic that requires plugins.
 
   static Future<void> init() async {
-    // Uses the capital 'Z' as requested by the package
-    tz.initializeTimeZones();
-
-    const AndroidInitializationSettings initializationSettingsAndroid =
-    AndroidInitializationSettings('launcher_icon');
-
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-    );
-
-    // 👇 FIX: The tooltip says the parameter name MUST be 'settings'
-    await _notificationsPlugin.initialize(
-      settings: initializationSettings,
-    );
-
-    await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    // Does nothing now
+    print("Notifications disabled for this build.");
   }
 
   static Future<void> scheduleExpiryNotification({
@@ -33,37 +12,10 @@ class NotificationService {
     required String itemName,
     required DateTime expiryDate,
   }) async {
-    final scheduleTime = expiryDate.subtract(const Duration(days: 1));
-
-    final tz.TZDateTime scheduledDate = tz.TZDateTime(
-      tz.local,
-      scheduleTime.year,
-      scheduleTime.month,
-      scheduleTime.day,
-      9, 0,
-    );
-
-    if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) return;
-
-    await _notificationsPlugin.zonedSchedule(
-      id: id,
-      title: 'Food Expiring Soon!',
-      body: 'Your $itemName expires tomorrow. Better use it up!',
-      scheduledDate: scheduledDate,
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'expiry_channel_id',
-          'Expiry Alerts',
-          channelDescription: 'Notifications for food expiration',
-          importance: Importance.max,
-          priority: Priority.high,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
+    // Does nothing now
   }
 
   static Future<void> cancelNotification(int id) async {
-    await _notificationsPlugin.cancel(id: id);
+    // Does nothing now
   }
 }
